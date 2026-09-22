@@ -10,8 +10,13 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getGroupStatus } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
-const POLL_INTERVAL_MS = 4000; // gọi lại API mỗi 4 giây để cập nhật danh sách
+const POLL_INTERVAL_MS = 4000;
+
+function initials(name = '') {
+  return name.trim().charAt(0).toUpperCase() || '?';
+}
 
 export default function GroupStatusScreen({ route, navigation }) {
   const { groupId, groupName, inviteCode } = route.params;
@@ -24,14 +29,12 @@ export default function GroupStatusScreen({ route, navigation }) {
       const result = await getGroupStatus(token, groupId);
       setMembers(result.members);
     } catch (err) {
-      // Lỗi mạng tạm thời khi poll thì bỏ qua, không làm phiền user bằng Alert liên tục
       console.log('Lỗi lấy trạng thái nhóm:', err.message);
     } finally {
       setLoading(false);
     }
   }, [token, groupId]);
 
-  // Polling: tự động gọi lại API mỗi vài giây khi màn hình đang mở
   useFocusEffect(
     useCallback(() => {
       fetchStatus();
@@ -41,53 +44,70 @@ export default function GroupStatusScreen({ route, navigation }) {
   );
 
   const submittedCount = members.filter((m) => m.hasSubmitted).length;
+  const progressRatio = members.length > 0 ? submittedCount / members.length : 0;
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{groupName}</Text>
 
       {inviteCode && (
-        <View style={styles.codeBox}>
-          <Text style={styles.codeLabel}>Mã mời — gửi cho bạn bè:</Text>
+        <View style={[styles.codeCard, shadow]}>
+          <Text style={styles.codeLabel}>Mã mời — gửi cho bạn bè</Text>
           <Text style={styles.codeValue}>{inviteCode}</Text>
         </View>
       )}
 
-      <Text style={styles.progressText}>
-        {submittedCount}/{members.length} người đã gửi vị trí
-      </Text>
+      <View style={styles.progressBlock}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressLabel}>Tiến độ chia sẻ vị trí</Text>
+          <Text style={styles.progressCount}>{submittedCount}/{members.length}</Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${progressRatio * 100}%` }]} />
+        </View>
+      </View>
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 24 }} />
+        <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
       ) : (
         <FlatList
           data={members}
           keyExtractor={(item) => item.userId}
-          style={{ marginTop: 16 }}
+          style={{ marginTop: spacing.md }}
+          contentContainerStyle={{ gap: spacing.sm }}
           renderItem={({ item }) => (
-            <View style={styles.memberRow}>
+            <View style={[styles.memberRow, shadow]}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials(item.name)}</Text>
+              </View>
               <Text style={styles.memberName}>{item.name}</Text>
-              <Text style={item.hasSubmitted ? styles.statusDone : styles.statusPending}>
-                {item.hasSubmitted ? '✓ Đã gửi' : 'Đang chờ...'}
-              </Text>
+              <View style={[styles.statusPill, item.hasSubmitted ? styles.statusPillDone : styles.statusPillPending]}>
+                <Text style={[styles.statusText, item.hasSubmitted ? styles.statusTextDone : styles.statusTextPending]}>
+                  {item.hasSubmitted ? '✓ Đã gửi' : 'Đang chờ'}
+                </Text>
+              </View>
             </View>
           )}
         />
       )}
 
-      <TouchableOpacity
-        style={[styles.button, styles.primaryButton]}
-        onPress={() => navigation.navigate('LocationInput', { groupId })}
-      >
-        <Text style={styles.buttonText}>Chia sẻ vị trí của tôi</Text>
-      </TouchableOpacity>
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={() => navigation.navigate('LocationInput', { groupId })}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.primaryButtonText}>📍 Chia sẻ vị trí của tôi</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.button, styles.secondaryButton]}
-        onPress={() => navigation.navigate('Suggestion', { groupId })}
-      >
-        <Text style={styles.buttonText}>Xem gợi ý điểm hẹn</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={() => navigation.navigate('Suggestion', { groupId })}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.secondaryButtonText}>☕ Xem gợi ý điểm hẹn</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -95,70 +115,130 @@ export default function GroupStatusScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
+    padding: spacing.lg,
   },
   title: {
-    fontSize: 22,
-    fontWeight: 'bold',
+    ...typography.title,
     textAlign: 'center',
-    marginTop: 40,
+    marginTop: spacing.lg,
   },
-  codeBox: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 16,
+  codeCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    marginTop: spacing.lg,
     alignItems: 'center',
   },
   codeLabel: {
-    fontSize: 13,
-    color: '#666',
+    ...typography.label,
   },
   codeValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-    marginTop: 4,
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.accent,
+    letterSpacing: 4,
+    marginTop: spacing.xs,
   },
-  progressText: {
-    textAlign: 'center',
-    marginTop: 16,
-    fontSize: 14,
-    color: '#555',
+  progressBlock: {
+    marginTop: spacing.lg,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  progressLabel: {
+    ...typography.subtitle,
+  },
+  progressCount: {
+    ...typography.subtitle,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  progressTrack: {
+    height: 8,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.success,
+    borderRadius: radius.pill,
   },
   memberRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    gap: spacing.sm,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
   },
   memberName: {
-    fontSize: 15,
-  },
-  statusDone: {
-    color: '#16a34a',
+    ...typography.body,
+    flex: 1,
     fontWeight: '600',
   },
-  statusPending: {
-    color: '#999',
+  statusPill: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
   },
-  button: {
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 12,
+  statusPillDone: {
+    backgroundColor: '#E9F0E5',
+  },
+  statusPillPending: {
+    backgroundColor: colors.surfaceMuted,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  statusTextDone: {
+    color: colors.success,
+  },
+  statusTextPending: {
+    color: colors.textSecondary,
+  },
+  actionRow: {
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
   },
   primaryButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingVertical: 15,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    ...typography.button,
+    color: '#fff',
   },
   secondaryButton: {
-    backgroundColor: '#16a34a',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.success,
+    borderRadius: radius.sm,
+    paddingVertical: 14,
+    alignItems: 'center',
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
+  secondaryButtonText: {
+    ...typography.button,
+    color: colors.success,
   },
 });

@@ -3,6 +3,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
+import { colors } from '../theme/theme';
 
 import LoginScreen from '../screens/LoginScreen';
 import GroupCreateJoinScreen from '../screens/GroupCreateJoinScreen';
@@ -12,30 +13,36 @@ import SuggestionScreen from '../screens/SuggestionScreen';
 
 const Stack = createNativeStackNavigator();
 
+// Style header dùng chung cho mọi màn hình có thanh tiêu đề — đồng bộ với theme của ứng dụng
+const screenOptions = {
+  headerStyle: { backgroundColor: colors.background },
+  headerTintColor: colors.primary,
+  headerTitleStyle: { fontWeight: '700' },
+  headerShadowVisible: false,
+  contentStyle: { backgroundColor: colors.background },
+};
+
 export default function AppNavigator() {
   const { token, loading } = useAuth();
 
-  // Đang đọc token đã lưu từ trước, chưa biết đăng nhập hay chưa -> hiện loading
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
     <NavigationContainer>
-      <Stack.Navigator>
+      <Stack.Navigator screenOptions={screenOptions}>
         {token === null ? (
-          // Chưa đăng nhập -> chỉ có màn hình Login
           <Stack.Screen
             name="Login"
             component={LoginScreen}
             options={{ headerShown: false }}
           />
         ) : (
-          // Đã đăng nhập -> vào thẳng luồng nhóm
           <>
             <Stack.Screen
               name="GroupCreateJoin"

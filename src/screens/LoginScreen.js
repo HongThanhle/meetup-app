@@ -7,9 +7,12 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { login as apiLogin, register as apiRegister } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -31,8 +34,6 @@ export default function LoginScreen() {
         ? await apiRegister({ name, email, password })
         : await apiLogin({ email, password });
 
-      // login() ở AuthContext sẽ lưu token, tự động chuyển màn hình
-      // nhờ AppNavigator theo dõi trạng thái đăng nhập
       await login(result.token, result.user);
     } catch (err) {
       const message = err.response?.data?.error || err.message;
@@ -43,98 +44,170 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>
-        {isRegisterMode ? 'Tạo tài khoản' : 'Đăng nhập'}
-      </Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={styles.container}>
+        <View style={styles.brandBlock}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeIcon}>☕</Text>
+          </View>
+          <Text style={styles.appName}>Điểm Hẹn</Text>
+          <Text style={styles.tagline}>Tìm nơi gặp nhau tiện nhất cho cả nhóm</Text>
+        </View>
 
-      {isRegisterMode && (
-        <TextInput
-          style={styles.input}
-          placeholder="Tên của bạn"
-          value={name}
-          onChangeText={setName}
-        />
-      )}
+        <View style={[styles.card, shadow]}>
+          <Text style={styles.cardTitle}>
+            {isRegisterMode ? 'Tạo tài khoản' : 'Chào bạn quay lại'}
+          </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
+          {isRegisterMode && (
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Tên của bạn</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Nguyễn Văn A"
+                placeholderTextColor={colors.textSecondary}
+                value={name}
+                onChangeText={setName}
+              />
+            </View>
+          )}
 
-      <TextInput
-        style={styles.input}
-        placeholder="Mật khẩu"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="ban@email.com"
+              placeholderTextColor={colors.textSecondary}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
 
-      <TouchableOpacity
-        style={[styles.button, styles.primaryButton]}
-        onPress={handleSubmit}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>
-          {isRegisterMode ? 'Đăng ký' : 'Đăng nhập'}
-        </Text>
-      </TouchableOpacity>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Mật khẩu</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="••••••••"
+              placeholderTextColor={colors.textSecondary}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
 
-      <TouchableOpacity onPress={() => setIsRegisterMode(!isRegisterMode)}>
-        <Text style={styles.switchLink}>
-          {isRegisterMode
-            ? 'Đã có tài khoản? Đăng nhập'
-            : 'Chưa có tài khoản? Đăng ký'}
-        </Text>
-      </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={handleSubmit}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryButtonText}>
+                {isRegisterMode ? 'Đăng ký' : 'Đăng nhập'}
+              </Text>
+            )}
+          </TouchableOpacity>
 
-      {loading && <ActivityIndicator style={{ marginTop: 16 }} />}
-    </View>
+          <TouchableOpacity onPress={() => setIsRegisterMode(!isRegisterMode)} style={styles.switchRow}>
+            <Text style={styles.switchText}>
+              {isRegisterMode ? 'Đã có tài khoản? ' : 'Chưa có tài khoản? '}
+              <Text style={styles.switchTextAccent}>
+                {isRegisterMode ? 'Đăng nhập' : 'Đăng ký'}
+              </Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
+    backgroundColor: colors.background,
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    padding: spacing.lg,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
+  brandBlock: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  badge: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  badgeIcon: {
+    fontSize: 26,
+  },
+  appName: {
+    ...typography.title,
+    fontSize: 28,
+  },
+  tagline: {
+    ...typography.subtitle,
+    marginTop: spacing.xs,
     textAlign: 'center',
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+  cardTitle: {
+    ...typography.title,
+    fontSize: 20,
+    marginBottom: spacing.lg,
+  },
+  field: {
+    marginBottom: spacing.md,
+  },
+  fieldLabel: {
+    ...typography.label,
+    marginBottom: spacing.xs,
   },
   input: {
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  button: {
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: colors.textPrimary,
   },
   primaryButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: spacing.sm,
   },
-  buttonText: {
+  primaryButtonText: {
+    ...typography.button,
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
   },
-  switchLink: {
-    textAlign: 'center',
-    color: '#2563eb',
-    marginTop: 16,
+  switchRow: {
+    marginTop: spacing.lg,
+    alignItems: 'center',
+  },
+  switchText: {
+    ...typography.subtitle,
+  },
+  switchTextAccent: {
+    color: colors.accent,
+    fontWeight: '700',
   },
 });

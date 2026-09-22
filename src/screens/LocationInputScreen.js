@@ -14,8 +14,10 @@ import {
   submitGPSLocation,
   geocodePreview,
   confirmManualLocation,
+  reverseGeocode,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 export default function LocationInputScreen({ route, navigation }) {
   const { groupId } = route.params;
@@ -40,15 +42,18 @@ export default function LocationInputScreen({ route, navigation }) {
         accuracy: Location.Accuracy.Balanced,
       });
 
-      await submitGPSLocation(token, {
-        groupId,
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-      });
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
 
-      Alert.alert('Thành công', 'Đã chia sẻ vị trí!', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      let matchedAddress = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      try {
+        const result = await reverseGeocode(token, { lat, lng });
+        matchedAddress = result.address;
+      } catch (geoErr) {
+        console.log('Không lấy được tên địa chỉ:', geoErr.message);
+      }
+
+      setConfirmData({ lat, lng, matchedAddress, source: 'gps' });
     } catch (err) {
       Alert.alert('Lỗi', err.response?.data?.error || err.message);
     } finally {
@@ -64,9 +69,9 @@ export default function LocationInputScreen({ route, navigation }) {
     setLoading(true);
     try {
       const result = await geocodePreview(token, { address: addressText });
-      setConfirmData(result);
+      setConfirmData({ ...result, source: 'manual' });
     } catch (err) {
-      Alert.alert('Không tìm được địa chỉ', 'Thử nhập địa chỉ cụ thể hơn.');
+      Alert.alert('Không tìm được địa chỉ', 'Thử nhập địa chỉ chi tiết hơn.');
     } finally {
       setLoading(false);
     }
@@ -79,12 +84,20 @@ export default function LocationInputScreen({ route, navigation }) {
     }
     setLoading(true);
     try {
-      await confirmManualLocation(token, {
-        groupId,
-        lat: confirmData.lat,
-        lng: confirmData.lng,
-        address: addressText,
-      });
+      if (confirmData.source === 'gps') {
+        await submitGPSLocation(token, {
+          groupId,
+          lat: confirmData.lat,
+          lng: confirmData.lng,
+        });
+      } else {
+        await confirmManualLocation(token, {
+          groupId,
+          lat: confirmData.lat,
+          lng: confirmData.lng,
+          address: addressText,
+        });
+      }
       Alert.alert('Thành công', 'Đã lưu vị trí!', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
@@ -98,26 +111,31 @@ export default function LocationInputScreen({ route, navigation }) {
   if (confirmData) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Xác nhận địa chỉ</Text>
-        <Text style={styles.confirmText}>
-          Bạn có ý là: {'\n'}
-          <Text style={styles.bold}>{confirmData.matchedAddress}</Text>?
-        </Text>
-        <View style={styles.row}>
+        <View style={[styles.confirmCard, shadow]}>
+          <View style={styles.pinBadge}>
+            <Text style={styles.pinBadgeIcon}>📍</Text>
+          </View>
+          <Text style={styles.confirmLabel}>
+            {confirmData.source === 'gps' ? 'Vị trí hiện tại của bạn' : 'Ý bạn có phải là'}
+          </Text>
+          <Text style={styles.confirmAddress}>{confirmData.matchedAddress}</Text>
+
           <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
+            style={styles.primaryButton}
             onPress={() => handleConfirmAddress(true)}
+            disabled={loading}
+            activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>Đúng, xác nhận</Text>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Đúng, xác nhận</Text>}
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.button, styles.cancelButton]}
+            style={styles.ghostButton}
             onPress={() => handleConfirmAddress(false)}
+            disabled={loading}
           >
-            <Text style={styles.buttonText}>Sửa lại</Text>
+            <Text style={styles.ghostButtonText}>Sửa lại</Text>
           </TouchableOpacity>
         </View>
-        {loading && <ActivityIndicator style={{ marginTop: 16 }} />}
       </View>
     );
   }
@@ -125,71 +143,210 @@ export default function LocationInputScreen({ route, navigation }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Chia sẻ vị trí của bạn</Text>
+      <Text style={styles.subtitle}>Chọn cách bạn muốn cho biết mình đang ở đâu</Text>
 
       {mode === null && (
-        <View style={{ gap: 16 }}>
-          <TouchableOpacity style={styles.choiceButton} onPress={() => setMode('gps')}>
-            <Text style={styles.choiceButtonText}>📍 Dùng vị trí hiện tại</Text>
+        <View style={styles.choiceStack}>
+          <TouchableOpacity
+            style={[styles.choiceCard, shadow]}
+            onPress={() => setMode('gps')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.choiceIcon, { backgroundColor: colors.primary }]}>
+              <Text style={styles.choiceIconText}>📍</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.choiceTitle}>Dùng vị trí hiện tại</Text>
+              <Text style={styles.choiceSubtitle}>Tự động lấy địa chỉ thông qua GPS</Text>
+            </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.choiceButton} onPress={() => setMode('manual')}>
-            <Text style={styles.choiceButtonText}>✏️ Nhập địa chỉ</Text>
+
+          <TouchableOpacity
+            style={[styles.choiceCard, shadow]}
+            onPress={() => setMode('manual')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.choiceIcon, { backgroundColor: colors.accent }]}>
+              <Text style={styles.choiceIconText}>✏️</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.choiceTitle}>Nhập địa chỉ</Text>
+              <Text style={styles.choiceSubtitle}>Gõ tay nếu không muốn bật định vị</Text>
+            </View>
           </TouchableOpacity>
         </View>
       )}
 
       {mode === 'gps' && (
-        <View>
+        <View style={[styles.card, shadow]}>
+          <Text style={styles.cardDescription}>
+            App sẽ lấy vị trí hiện tại của bạn qua GPS.
+          </Text>
           <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
+            style={styles.primaryButton}
             onPress={handleUseGPS}
             disabled={loading}
+            activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>Lấy vị trí ngay</Text>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Lấy vị trí ngay</Text>}
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setMode(null)}>
-            <Text style={styles.backLink}>← Chọn cách khác</Text>
+          <TouchableOpacity onPress={() => setMode(null)} style={styles.backRow}>
+            <Text style={styles.backText}>← Chọn cách khác</Text>
           </TouchableOpacity>
         </View>
       )}
 
       {mode === 'manual' && (
-        <View>
+        <View style={[styles.card, shadow]}>
+          <Text style={styles.cardDescription}>
+            Nhập địa chỉ cụ thể (số nhà, tên đường) để có kết quả chính xác nhất.
+          </Text>
           <TextInput
             style={styles.input}
             placeholder="Ví dụ: 25 Trần Duy Hưng, Cầu Giấy, Hà Nội"
+            placeholderTextColor={colors.textSecondary}
             value={addressText}
             onChangeText={setAddressText}
           />
           <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
+            style={styles.primaryButton}
             onPress={handleSubmitAddress}
             disabled={loading}
+            activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>Tìm địa chỉ</Text>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Tìm địa chỉ</Text>}
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setMode(null)}>
-            <Text style={styles.backLink}>← Chọn cách khác</Text>
+          <TouchableOpacity onPress={() => setMode(null)} style={styles.backRow}>
+            <Text style={styles.backText}>← Chọn cách khác</Text>
           </TouchableOpacity>
         </View>
       )}
-
-      {loading && <ActivityIndicator style={{ marginTop: 16 }} size="large" />}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 24, justifyContent: 'center', backgroundColor: '#fff' },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 24, textAlign: 'center' },
-  choiceButton: { padding: 18, borderRadius: 12, borderWidth: 1, borderColor: '#ddd', alignItems: 'center' },
-  choiceButtonText: { fontSize: 16, fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 16 },
-  button: { padding: 14, borderRadius: 8, alignItems: 'center', marginBottom: 8 },
-  primaryButton: { backgroundColor: '#2563eb' },
-  cancelButton: { backgroundColor: '#999' },
-  buttonText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  backLink: { textAlign: 'center', color: '#2563eb', marginTop: 4 },
-  row: { flexDirection: 'row', gap: 12, justifyContent: 'center' },
-  confirmText: { fontSize: 16, textAlign: 'center', marginBottom: 24 },
-  bold: { fontWeight: 'bold' },
+  container: {
+    flexGrow: 1,
+    backgroundColor: colors.background,
+    padding: spacing.lg,
+    justifyContent: 'center',
+  },
+  title: {
+    ...typography.title,
+    textAlign: 'center',
+  },
+  subtitle: {
+    ...typography.subtitle,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  choiceStack: {
+    gap: spacing.md,
+  },
+  choiceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  choiceIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  choiceIconText: {
+    fontSize: 22,
+  },
+  choiceTitle: {
+    ...typography.body,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  choiceSubtitle: {
+    ...typography.subtitle,
+    fontSize: 13,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+  cardDescription: {
+    ...typography.subtitle,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  input: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
+  },
+  primaryButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingVertical: 15,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    ...typography.button,
+    color: '#fff',
+  },
+  backRow: {
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  backText: {
+    color: colors.accent,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  confirmCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  pinBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  pinBadgeIcon: {
+    fontSize: 26,
+  },
+  confirmLabel: {
+    ...typography.label,
+    marginBottom: spacing.xs,
+  },
+  confirmAddress: {
+    ...typography.body,
+    fontWeight: '700',
+    fontSize: 17,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  ghostButton: {
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  ghostButtonText: {
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
 });

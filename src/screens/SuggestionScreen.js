@@ -11,6 +11,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getSuggestions } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
 export default function SuggestionScreen({ route }) {
   const { groupId } = route.params;
@@ -40,34 +41,44 @@ export default function SuggestionScreen({ route }) {
     <View style={styles.container}>
       <Text style={styles.title}>Gợi ý điểm hẹn</Text>
 
-      {loading && <ActivityIndicator style={{ marginTop: 24 }} size="large" />}
+      {loading && <ActivityIndicator style={{ marginTop: spacing.xl }} size="large" color={colors.primary} />}
 
       {!loading && data && (
         <>
-          <Text style={styles.centroidText}>
-            Điểm trung tâm: {data.centroid.lat.toFixed(5)}, {data.centroid.lng.toFixed(5)}
-          </Text>
+          <View style={[styles.centroidCard, shadow]}>
+            <Text style={styles.centroidLabel}>📍 Điểm trung tâm của nhóm</Text>
+            <Text style={styles.centroidValue}>
+              {data.centroid.lat.toFixed(5)}, {data.centroid.lng.toFixed(5)}
+            </Text>
+          </View>
 
           <FlatList
             data={data.suggestions}
             keyExtractor={(item) => String(item.id)}
-            style={{ marginTop: 16 }}
+            style={{ marginTop: spacing.md }}
+            contentContainerStyle={{ gap: spacing.sm }}
             renderItem={({ item, index }) => (
-              <View style={styles.placeRow}>
-                <Text style={styles.placeName}>
-                  {index + 1}. {item.name}
-                </Text>
-                <Text style={styles.placeDistance}>{item.distance.toFixed(2)} km</Text>
+              <View style={[styles.placeRow, shadow]}>
+                <View style={styles.rankBadge}>
+                  <Text style={styles.rankText}>{index + 1}</Text>
+                </View>
+                <Text style={styles.placeName} numberOfLines={1}>{item.name}</Text>
+                <View style={styles.distancePill}>
+                  <Text style={styles.distanceText}>{item.distance.toFixed(2)} km</Text>
+                </View>
               </View>
             )}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>Chưa tìm được quán nào gần đó.</Text>
+              <View style={styles.emptyBlock}>
+                <Text style={styles.emptyIcon}>☕</Text>
+                <Text style={styles.emptyText}>Chưa tìm được quán nào gần đó.</Text>
+              </View>
             }
           />
         </>
       )}
 
-      <TouchableOpacity style={styles.refreshButton} onPress={fetchSuggestions}>
+      <TouchableOpacity style={styles.refreshButton} onPress={fetchSuggestions} activeOpacity={0.85}>
         <Text style={styles.refreshText}>Làm mới</Text>
       </TouchableOpacity>
     </View>
@@ -75,26 +86,90 @@ export default function SuggestionScreen({ route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginTop: 20 },
-  centroidText: { textAlign: 'center', marginTop: 12, color: '#666', fontSize: 13 },
-  placeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+    padding: spacing.lg,
   },
-  placeName: { fontSize: 15, flex: 1 },
-  placeDistance: { fontSize: 14, color: '#2563eb', fontWeight: '600' },
-  emptyText: { textAlign: 'center', color: '#999', marginTop: 24 },
-  refreshButton: {
-    marginTop: 16,
-    padding: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2563eb',
+  title: {
+    ...typography.title,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+  },
+  centroidCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.lg,
     alignItems: 'center',
   },
-  refreshText: { color: '#2563eb', fontWeight: '600' },
+  centroidLabel: {
+    ...typography.label,
+  },
+  centroidValue: {
+    ...typography.body,
+    fontWeight: '700',
+    marginTop: spacing.xs,
+  },
+  placeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    gap: spacing.sm,
+  },
+  rankBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankText: {
+    fontWeight: '700',
+    color: colors.accent,
+    fontSize: 13,
+  },
+  placeName: {
+    ...typography.body,
+    fontWeight: '600',
+    flex: 1,
+  },
+  distancePill: {
+    backgroundColor: '#E9F0E5',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  distanceText: {
+    color: colors.success,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  emptyBlock: {
+    alignItems: 'center',
+    marginTop: spacing.xl,
+  },
+  emptyIcon: {
+    fontSize: 32,
+    marginBottom: spacing.sm,
+  },
+  emptyText: {
+    ...typography.subtitle,
+  },
+  refreshButton: {
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    paddingVertical: 14,
+    borderRadius: radius.sm,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: 'center',
+  },
+  refreshText: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
 });

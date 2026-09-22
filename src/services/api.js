@@ -1,8 +1,7 @@
 import axios from 'axios';
 
 // ĐỔI URL này thành backend thật của bạn (Render, ngrok...)
-const BASE_URL = 'https://your-backend-url.onrender.com';
-
+const BASE_URL = 'https://meetup-app-backend-c8au.onrender.com';
 // Tạo 1 instance axios riêng để tự động gắn token vào mọi request
 export function createApiClient(token) {
   const client = axios.create({ baseURL: BASE_URL });
@@ -68,6 +67,12 @@ export async function confirmManualLocation(token, { groupId, lat, lng, address 
     address,
   });
   return response.data;
+}
+
+export async function reverseGeocode(token, { lat, lng }) {
+  const client = createApiClient(token);
+  const response = await client.post('/reverse-geocode', { lat, lng });
+  return response.data; // { address }
 }
 
 // ----- Suggestions -----
