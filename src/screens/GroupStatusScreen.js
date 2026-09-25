@@ -6,9 +6,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
+  Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getGroupStatus } from '../services/api';
+import { getGroupStatus, leaveGroup } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
@@ -23,6 +24,7 @@ export default function GroupStatusScreen({ route, navigation }) {
   const { token } = useAuth();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [leaving, setLeaving] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -45,7 +47,29 @@ export default function GroupStatusScreen({ route, navigation }) {
 
   const submittedCount = members.filter((m) => m.hasSubmitted).length;
   const progressRatio = members.length > 0 ? submittedCount / members.length : 0;
-
+  const handleLeaveGroup = () => {
+  Alert.alert(
+    'Rời nhóm?',
+    `Bạn sẽ không còn thấy "${groupName}" trong danh sách nhóm nữa.`,
+    [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: 'Rời nhóm',
+        style: 'destructive',
+        onPress: async () => {
+          setLeaving(true);
+          try {
+            await leaveGroup(token, { groupId });
+            navigation.reset({ index: 0, routes: [{ name: 'MyGroups' }] });
+          } catch (err) {
+            Alert.alert('Lỗi', err.response?.data?.error || err.message);
+            setLeaving(false);
+          }
+        },
+      },
+    ]
+  );
+};
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{groupName}</Text>
@@ -108,6 +132,13 @@ export default function GroupStatusScreen({ route, navigation }) {
           <Text style={styles.secondaryButtonText}>☕ Xem gợi ý điểm hẹn</Text>
         </TouchableOpacity>
       </View>
+      <TouchableOpacity onPress={handleLeaveGroup} disabled={leaving} style={styles.leaveRow}>
+        {leaving ? (
+          <ActivityIndicator color={colors.danger} size="small" />
+        ) : (
+          <Text style={styles.leaveText}>Rời nhóm</Text>
+        )}
+      </TouchableOpacity>
     </View>
   );
 }
@@ -241,4 +272,6 @@ const styles = StyleSheet.create({
     ...typography.button,
     color: colors.success,
   },
+  leaveRow: { alignItems: 'center', paddingVertical: spacing.md },
+  leaveText: { color: colors.danger, fontWeight: '600', fontSize: 14 },
 });

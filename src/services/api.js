@@ -29,6 +29,18 @@ export async function createGroup(token, { groupName }) {
   return response.data; // { groupId, inviteCode, groupName }
 }
 
+export async function getMyGroups(token) {
+  const client = createApiClient(token);
+  const response = await client.get('/groups');
+  return response.data;
+}
+
+export async function leaveGroup(token, { groupId }) {
+  const client = createApiClient(token);
+  const response = await client.post(`/groups/${groupId}/leave`);
+  return response.data;
+}
+
 export async function joinGroup(token, { inviteCode }) {
   const client = createApiClient(token);
   const response = await client.post('/groups/join', { inviteCode });

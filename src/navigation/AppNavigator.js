@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme/theme';
 
 import LoginScreen from '../screens/LoginScreen';
+import MyGroupsScreen from '../screens/MyGroupsScreen';
 import GroupCreateJoinScreen from '../screens/GroupCreateJoinScreen';
 import GroupStatusScreen from '../screens/GroupStatusScreen';
 import LocationInputScreen from '../screens/LocationInputScreen';
@@ -44,26 +45,11 @@ export default function AppNavigator() {
           />
         ) : (
           <>
-            <Stack.Screen
-              name="GroupCreateJoin"
-              component={GroupCreateJoinScreen}
-              options={{ title: 'Nhóm hẹn gặp', headerShown: false }}
-            />
-            <Stack.Screen
-              name="GroupStatus"
-              component={GroupStatusScreen}
-              options={{ title: 'Trạng thái nhóm' }}
-            />
-            <Stack.Screen
-              name="LocationInput"
-              component={LocationInputScreen}
-              options={{ title: 'Chia sẻ vị trí' }}
-            />
-            <Stack.Screen
-              name="Suggestion"
-              component={SuggestionScreen}
-              options={{ title: 'Gợi ý điểm hẹn' }}
-            />
+            <Stack.Screen name="MyGroups" component={MyGroupsScreen} options={{ title: 'Nhóm của bạn', headerShown: false }} />
+            <Stack.Screen name="GroupCreateJoin" component={GroupCreateJoinScreen} options={{ title: 'Tạo / tham gia nhóm' }} />
+            <Stack.Screen name="GroupStatus" component={GroupStatusScreen} options={{ title: 'Trạng thái nhóm' }} />
+            <Stack.Screen name="LocationInput" component={LocationInputScreen} options={{ title: 'Chia sẻ vị trí' }} />
+            <Stack.Screen name="Suggestion" component={SuggestionScreen} options={{ title: 'Gợi ý điểm hẹn' }} />
           </>
         )}
       </Stack.Navigator>
