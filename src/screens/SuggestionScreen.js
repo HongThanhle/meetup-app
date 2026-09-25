@@ -21,11 +21,16 @@ export default function SuggestionScreen({ route }) {
 
   const fetchSuggestions = useCallback(async () => {
     setLoading(true);
+    setData(null);
     try {
       const result = await getSuggestions(token, groupId);
       setData(result);
     } catch (err) {
-      Alert.alert('Lỗi', err.response?.data?.error || 'Không lấy được gợi ý. Có thể chưa đủ người gửi vị trí.');
+      setData(null);
+      const message = err.response?.status === 503
+        ? 'Dịch vụ bản đồ đang tạm thời không khả dụng. Vui lòng thử lại sau.'
+        : err.response?.data?.error || 'Không lấy được gợi ý. Có thể chưa đủ người gửi vị trí.';
+      Alert.alert('Lỗi', message);
     } finally {
       setLoading(false);
     }
