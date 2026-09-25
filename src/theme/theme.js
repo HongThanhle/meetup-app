@@ -6,7 +6,7 @@ export const colors = {
   surfaceMuted: '#F1EAE0',    // nền phụ, ô mã mời, badge chờ
 
   textPrimary: '#2C2119',     // nâu đậm gần đen, dùng cho chữ chính
-  textSecondary: '#8A7A6B',   // nâu xám nhạt, dùng cho mô tả/phụ đề
+  textSecondary: '#6F6257',   // nâu xám, dùng cho mô tả/phụ đề
 
   primary: '#4A3428',         // nâu espresso — nút chính, tiêu đề nhấn
   accent: '#BE6A43',          // đất nung — điểm nhấn, badge, icon

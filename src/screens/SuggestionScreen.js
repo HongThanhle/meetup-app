@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   FlatList,
   Alert,
+  Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getSuggestions } from '../services/api';
@@ -36,6 +37,12 @@ export default function SuggestionScreen({ route }) {
     }
   }, [token, groupId]);
 
+  const openMap = () => {
+    if (!data?.centroid) return;
+    const { lat, lng } = data.centroid;
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchSuggestions();
@@ -55,6 +62,9 @@ export default function SuggestionScreen({ route }) {
             <Text style={styles.centroidValue}>
               {data.centroid.lat.toFixed(5)}, {data.centroid.lng.toFixed(5)}
             </Text>
+            <TouchableOpacity style={styles.mapButton} onPress={openMap} activeOpacity={0.85}>
+              <Text style={styles.mapButtonText}>↗ Mở trên bản đồ</Text>
+            </TouchableOpacity>
           </View>
 
           <FlatList
@@ -83,8 +93,13 @@ export default function SuggestionScreen({ route }) {
         </>
       )}
 
-      <TouchableOpacity style={styles.refreshButton} onPress={fetchSuggestions} activeOpacity={0.85}>
-        <Text style={styles.refreshText}>Làm mới</Text>
+      <TouchableOpacity
+        style={[styles.refreshButton, loading && styles.refreshButtonDisabled]}
+        onPress={fetchSuggestions}
+        disabled={loading}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.refreshText}>{loading ? 'Đang tải...' : 'Làm mới'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -116,6 +131,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: spacing.xs,
   },
+  mapButton: {
+    marginTop: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: spacing.md, paddingVertical: 9,
+  },
+  mapButtonText: { color: colors.primary, fontWeight: '700', fontSize: 13 },
   placeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -173,6 +193,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     alignItems: 'center',
   },
+  refreshButtonDisabled: { opacity: 0.5 },
   refreshText: {
     color: colors.primary,
     fontWeight: '700',
