@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { getGroupStatus, leaveGroup } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
@@ -47,29 +48,32 @@ export default function GroupStatusScreen({ route, navigation }) {
 
   const submittedCount = members.filter((m) => m.hasSubmitted).length;
   const progressRatio = members.length > 0 ? submittedCount / members.length : 0;
+
   const handleLeaveGroup = () => {
-  Alert.alert(
-    'Rời nhóm?',
-    `Bạn sẽ không còn thấy "${groupName}" trong danh sách nhóm nữa.`,
-    [
-      { text: 'Hủy', style: 'cancel' },
-      {
-        text: 'Rời nhóm',
-        style: 'destructive',
-        onPress: async () => {
-          setLeaving(true);
-          try {
-            await leaveGroup(token, { groupId });
-            navigation.reset({ index: 0, routes: [{ name: 'MyGroups' }] });
-          } catch (err) {
-            Alert.alert('Lỗi', err.response?.data?.error || err.message);
-            setLeaving(false);
-          }
+    Alert.alert(
+      'Rời nhóm?',
+      `Bạn sẽ không còn thấy "${groupName}" trong danh sách nhóm nữa.`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Rời nhóm',
+          style: 'destructive',
+          onPress: async () => {
+            setLeaving(true);
+            try {
+              await leaveGroup(token, { groupId });
+              // Quay về màn hình danh sách nhóm, xóa hẳn màn hình nhóm này khỏi lịch sử điều hướng
+              navigation.reset({ index: 0, routes: [{ name: 'MyGroups' }] });
+            } catch (err) {
+              Alert.alert('Lỗi', err.response?.data?.error || err.message);
+              setLeaving(false);
+            }
+          },
         },
-      },
-    ]
-  );
-};
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{groupName}</Text>
@@ -121,7 +125,8 @@ export default function GroupStatusScreen({ route, navigation }) {
           onPress={() => navigation.navigate('LocationInput', { groupId })}
           activeOpacity={0.85}
         >
-          <Text style={styles.primaryButtonText}>📍 Chia sẻ vị trí của tôi</Text>
+          <Ionicons name="navigate" size={18} color="#fff" style={{ marginRight: 6 }} />
+          <Text style={styles.primaryButtonText}>Chia sẻ vị trí của tôi</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -129,10 +134,16 @@ export default function GroupStatusScreen({ route, navigation }) {
           onPress={() => navigation.navigate('Suggestion', { groupId })}
           activeOpacity={0.85}
         >
-          <Text style={styles.secondaryButtonText}>☕ Xem gợi ý điểm hẹn</Text>
+          <Ionicons name="cafe" size={18} color={colors.success} style={{ marginRight: 6 }} />
+          <Text style={styles.secondaryButtonText}>Xem gợi ý điểm hẹn</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity onPress={handleLeaveGroup} disabled={leaving} style={styles.leaveRow}>
+
+      <TouchableOpacity
+        onPress={handleLeaveGroup}
+        disabled={leaving}
+        style={styles.leaveRow}
+      >
         {leaving ? (
           <ActivityIndicator color={colors.danger} size="small" />
         ) : (
@@ -254,7 +265,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radius.sm,
     paddingVertical: 15,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryButtonText: {
     ...typography.button,
@@ -266,12 +279,21 @@ const styles = StyleSheet.create({
     borderColor: colors.success,
     borderRadius: radius.sm,
     paddingVertical: 14,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   secondaryButtonText: {
     ...typography.button,
     color: colors.success,
   },
-  leaveRow: { alignItems: 'center', paddingVertical: spacing.md },
-  leaveText: { color: colors.danger, fontWeight: '600', fontSize: 14 },
+  leaveRow: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  leaveText: {
+    color: colors.danger,
+    fontWeight: '600',
+    fontSize: 14,
+  },
 });

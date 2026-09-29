@@ -8,6 +8,7 @@ import {
   FlatList,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { getMyGroups } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
@@ -16,22 +17,19 @@ export default function MyGroupsScreen({ navigation }) {
   const { token, user, logout } = useAuth();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   const fetchGroups = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     try {
       const result = await getMyGroups(token);
       setGroups(result.groups);
     } catch (err) {
       console.log('Lỗi lấy danh sách nhóm:', err.message);
-      setError('Không thể tải danh sách nhóm. Vui lòng kiểm tra kết nối và thử lại.');
     } finally {
       setLoading(false);
     }
   }, [token]);
 
+  // Tự tải lại mỗi khi quay về màn hình này — ví dụ sau khi tạo nhóm mới hoặc rời nhóm
   useFocusEffect(
     useCallback(() => {
       fetchGroups();
@@ -42,23 +40,11 @@ export default function MyGroupsScreen({ navigation }) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.greeting}>Chào {user?.name?.split(' ').pop() || 'bạn'} 👋</Text>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>Nhóm của bạn</Text>
-          {!loading && !error && <View style={styles.countBadge}><Text style={styles.countText}>{groups.length}</Text></View>}
-        </View>
-        <Text style={styles.headerHint}>Chọn một nhóm để tiếp tục kế hoạch gặp mặt</Text>
+        <Text style={styles.title}>Nhóm của bạn</Text>
       </View>
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
-      ) : error ? (
-        <View style={styles.errorBlock}>
-          <Text style={styles.errorIcon}>!</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchGroups} activeOpacity={0.85}>
-            <Text style={styles.retryText}>Thử lại</Text>
-          </TouchableOpacity>
-        </View>
       ) : (
         <FlatList
           data={groups}
@@ -77,21 +63,18 @@ export default function MyGroupsScreen({ navigation }) {
               }
             >
               <View style={styles.groupIcon}>
-                <Text style={styles.groupIconText}>☕</Text>
+                <Ionicons name="people" size={20} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.groupName}>{item.groupName}</Text>
-                <View style={styles.groupMetaRow}>
-                  <Text style={styles.groupMeta}>{item.memberCount} thành viên</Text>
-                  <Text style={styles.openLabel}>Mở nhóm</Text>
-                </View>
+                <Text style={styles.groupMeta}>{item.memberCount} thành viên</Text>
               </View>
-              <Text style={styles.chevron}>›</Text>
+              <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
           ListEmptyComponent={
             <View style={styles.emptyBlock}>
-              <Text style={styles.emptyIcon}>🗒️</Text>
+              <Ionicons name="clipboard-outline" size={40} color={colors.textSecondary} />
               <Text style={styles.emptyText}>Bạn chưa có nhóm nào.{'\n'}Tạo nhóm mới để bắt đầu hẹn gặp!</Text>
             </View>
           }
@@ -103,7 +86,8 @@ export default function MyGroupsScreen({ navigation }) {
         onPress={() => navigation.navigate('GroupCreateJoin')}
         activeOpacity={0.85}
       >
-        <Text style={styles.primaryButtonText}>+ Tạo nhóm / Tham gia</Text>
+        <Ionicons name="add-circle-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+        <Text style={styles.primaryButtonText}>Tạo nhóm / Tham gia</Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={logout} style={styles.logoutRow}>
@@ -114,52 +98,86 @@ export default function MyGroupsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
-  header: { marginTop: spacing.xl, marginBottom: spacing.lg },
-  greeting: { ...typography.subtitle },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
-  title: { ...typography.title },
-  countBadge: {
-    minWidth: 28, height: 28, paddingHorizontal: 7, borderRadius: radius.pill,
-    backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+    padding: spacing.lg,
   },
-  countText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  headerHint: { ...typography.subtitle, marginTop: spacing.xs },
+  header: {
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  greeting: {
+    ...typography.subtitle,
+  },
+  title: {
+    ...typography.title,
+    marginTop: spacing.xs,
+  },
   groupCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface,
-    borderRadius: radius.lg, padding: spacing.md, gap: spacing.md,
-    borderLeftWidth: 4, borderLeftColor: colors.accent,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.md,
   },
   groupIcon: {
-    width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.surfaceMuted,
-    alignItems: 'center', justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  groupIconText: { fontSize: 20 },
-  groupName: { ...typography.body, fontWeight: '700' },
-  groupMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 3 },
-  groupMeta: { ...typography.subtitle, fontSize: 12 },
-  openLabel: { color: colors.accent, fontSize: 11, fontWeight: '700' },
-  chevron: { fontSize: 22, color: colors.textSecondary },
-  emptyBlock: { alignItems: 'center', marginTop: spacing.xl, paddingHorizontal: spacing.lg },
-  emptyIcon: { fontSize: 36, marginBottom: spacing.sm },
-  emptyText: { ...typography.subtitle, textAlign: 'center', lineHeight: 20 },
-  errorBlock: { alignItems: 'center', marginTop: spacing.xl, paddingHorizontal: spacing.lg },
-  errorIcon: {
-    width: 36, height: 36, borderRadius: radius.pill, backgroundColor: '#F8E4E1',
-    color: colors.danger, textAlign: 'center', textAlignVertical: 'center',
-    fontSize: 22, fontWeight: '700', marginBottom: spacing.sm,
+  groupIconText: {
+    fontSize: 20,
   },
-  errorText: { ...typography.subtitle, textAlign: 'center', lineHeight: 20 },
-  retryButton: {
-    marginTop: spacing.md, borderWidth: 1.5, borderColor: colors.primary,
-    borderRadius: radius.sm, paddingHorizontal: spacing.lg, paddingVertical: 11,
+  groupName: {
+    ...typography.body,
+    fontWeight: '700',
   },
-  retryText: { ...typography.button, color: colors.primary },
+  groupMeta: {
+    ...typography.subtitle,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  chevron: {
+    fontSize: 22,
+    color: colors.textSecondary,
+  },
+  emptyBlock: {
+    alignItems: 'center',
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyIcon: {
+    fontSize: 36,
+    marginBottom: spacing.sm,
+  },
+  emptyText: {
+    ...typography.subtitle,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   primaryButton: {
-    backgroundColor: colors.primary, borderRadius: radius.sm, paddingVertical: 15,
-    alignItems: 'center', marginTop: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingVertical: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.md,
   },
-  primaryButtonText: { ...typography.button, color: '#fff' },
-  logoutRow: { alignItems: 'center', paddingVertical: spacing.md },
-  logoutText: { ...typography.subtitle },
+  primaryButtonText: {
+    ...typography.button,
+    color: '#fff',
+  },
+  logoutRow: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  logoutText: {
+    ...typography.subtitle,
+  },
 });

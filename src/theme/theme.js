@@ -6,7 +6,7 @@ export const colors = {
   surfaceMuted: '#F1EAE0',    // nền phụ, ô mã mời, badge chờ
 
   textPrimary: '#2C2119',     // nâu đậm gần đen, dùng cho chữ chính
-  textSecondary: '#6F6257',   // nâu xám, dùng cho mô tả/phụ đề
+  textSecondary: '#8A7A6B',   // nâu xám nhạt, dùng cho mô tả/phụ đề
 
   primary: '#4A3428',         // nâu espresso — nút chính, tiêu đề nhấn
   accent: '#BE6A43',          // đất nung — điểm nhấn, badge, icon
@@ -32,7 +32,7 @@ export const radius = {
 };
 
 export const typography = {
-  title: { fontSize: 26, fontWeight: '700', color: colors.textPrimary, letterSpacing: -0.3 },
+  title: { fontSize: 26, fontFamily: 'BeVietnamPro_700Bold', color: colors.textPrimary, letterSpacing: -0.3 },
   subtitle: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
   body: { fontSize: 15, fontWeight: '400', color: colors.textPrimary },
   button: { fontSize: 15, fontWeight: '600', letterSpacing: 0.2 },
