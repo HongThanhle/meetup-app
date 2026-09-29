@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { login as apiLogin, register as apiRegister } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
@@ -51,7 +52,7 @@ export default function LoginScreen() {
       <View style={styles.container}>
         <View style={styles.brandBlock}>
           <View style={styles.badge}>
-            <Text style={styles.badgeIcon}>☕</Text>
+            <Ionicons name="cafe" size={26} color="#fff" />
           </View>
           <Text style={styles.appName}>Điểm Hẹn</Text>
           <Text style={styles.tagline}>Tìm nơi gặp nhau tiện nhất cho cả nhóm</Text>

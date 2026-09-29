@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { createGroup, joinGroup } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
@@ -73,7 +74,7 @@ export default function GroupCreateJoinScreen({ navigation }) {
             activeOpacity={0.85}
           >
             <View style={[styles.choiceIcon, { backgroundColor: colors.primary }]}>
-              <Text style={styles.choiceIconText}>➕</Text>
+              <Ionicons name="add" size={24} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.choiceTitle}>Tạo nhóm mới</Text>
@@ -87,7 +88,7 @@ export default function GroupCreateJoinScreen({ navigation }) {
             activeOpacity={0.85}
           >
             <View style={[styles.choiceIcon, { backgroundColor: colors.accent }]}>
-              <Text style={styles.choiceIconText}>🔑</Text>
+              <Ionicons name="key" size={22} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.choiceTitle}>Tham gia bằng mã mời</Text>
