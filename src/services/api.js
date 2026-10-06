@@ -99,3 +99,33 @@ export async function getRouteToSuggestion(token, groupId, { lat, lng }) {
   const response = await client.post(`/groups/${groupId}/route`, { lat, lng });
   return response.data; // { coordinates: [[lng, lat], ...], distanceMeters, durationSeconds }
 }
+
+// ----- Vote -----
+export async function castVote(token, { groupId, placeId, placeName, lat, lng }) {
+  const client = createApiClient(token);
+  const response = await client.post(`/groups/${groupId}/vote`, {
+    placeId,
+    placeName,
+    lat,
+    lng,
+  });
+  return response.data; // { totalMembers, totalVotes, tally, finalizedPlace }
+}
+
+export async function getVoteResults(token, groupId) {
+  const client = createApiClient(token);
+  const response = await client.get(`/groups/${groupId}/vote-results`);
+  return response.data; // { totalMembers, totalVotes, tally, finalizedPlace }
+}
+
+export async function finalizeMeetupPlace(token, { groupId, placeId, placeName, lat, lng, address }) {
+  const client = createApiClient(token);
+  const response = await client.post(`/groups/${groupId}/finalize`, {
+    placeId,
+    placeName,
+    lat,
+    lng,
+    address,
+  });
+  return response.data; // { finalizedPlace }
+}

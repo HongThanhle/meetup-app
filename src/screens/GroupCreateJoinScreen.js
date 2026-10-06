@@ -53,7 +53,7 @@ export default function GroupCreateJoinScreen({ navigation }) {
         groupName: result.groupName,
       });
     } catch (err) {
-      Alert.alert('Lỗi', err.response?.data?.error || 'Mã mời không đúng hoặc đã hết hạn.');
+      Alert.alert('Lỗi', err.response?.data?.error || 'Mã mời không chính xác hoặc đã hết hạn.');
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,12 @@ import {
   ActivityIndicator,
   FlatList,
   Alert,
+  Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
-import { getRouteToSuggestion, getSuggestions } from '../services/api';
+import { getRouteToSuggestion, getSuggestions, castVote, getVoteResults, reverseGeocode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
@@ -270,11 +271,14 @@ function createMapHtml(data) {
 
 export default function SuggestionScreen({ route }) {
   const { groupId } = route.params;
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [mapReady, setMapReady] = useState(false);
+  const [voteData, setVoteData] = useState(null);
+  const [voting, setVoting] = useState(false);
+  const [centroidAddress, setCentroidAddress] = useState(null);
   const mapRef = useRef(null);
   const routeRequestRef = useRef(0);
   const mapHtml = useMemo(() => (data ? createMapHtml(data) : ''), [data]);
@@ -296,11 +300,39 @@ export default function SuggestionScreen({ route }) {
     }
   }, [token, groupId]);
 
+  const fetchVoteResults = useCallback(async () => {
+    try {
+      const result = await getVoteResults(token, groupId);
+      setVoteData(result);
+    } catch (err) {
+      // bỏ qua lỗi polling, không làm phiền user
+    }
+  }, [token, groupId]);
+
   useFocusEffect(
     useCallback(() => {
       fetchSuggestions();
     }, [fetchSuggestions])
   );
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchVoteResults();
+      const interval = setInterval(fetchVoteResults, 4000);
+      return () => clearInterval(interval);
+    }, [fetchVoteResults])
+  );
+
+  // Hiện địa chỉ thật cho điểm trung tâm thay vì toạ độ thô
+  useEffect(() => {
+    if (!data?.centroid) {
+      setCentroidAddress(null);
+      return;
+    }
+    reverseGeocode(token, { lat: data.centroid.lat, lng: data.centroid.lng })
+      .then((res) => setCentroidAddress(res.address))
+      .catch(() => setCentroidAddress(null)); // thất bại thì vẫn còn toạ độ để hiện
+  }, [data?.centroid, token]);
 
   const selectPlace = (place) => {
     const placeId = String(place.id);
@@ -363,9 +395,47 @@ export default function SuggestionScreen({ route }) {
     }
   };
 
+  // ---- Vote ----
+  const handleVote = async (place) => {
+    if (voteData?.finalizedPlace) return;
+    setVoting(true);
+    try {
+      const result = await castVote(token, {
+        groupId,
+        placeId: String(place.id),
+        placeName: place.name,
+        lat: place.lat,
+        lng: place.lng,
+      });
+      setVoteData(result);
+    } catch (err) {
+      Alert.alert('Lỗi', err.response?.data?.error || 'Không thể bình chọn, vui lòng thử lại.');
+    } finally {
+      setVoting(false);
+    }
+  };
+
+  // ---- Xem ảnh/review trên Google Maps trước khi vote ----
+  const handleViewOnGoogleMaps = (place) => {
+    const query = encodeURIComponent(`${place.name} ${place.address || ''}`.trim());
+    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
+    const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`;
+    Linking.openURL(url).catch(() => Linking.openURL(fallbackUrl));
+  };
+
+  const myUserId = user?.id || user?._id;
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Gợi ý điểm hẹn</Text>
+
+      {voteData?.finalizedPlace && (
+        <View style={styles.finalizedBanner}>
+          <Ionicons name="flag" size={18} color="#fff" />
+          <Text style={styles.finalizedText}>
+            Điểm hẹn đã chốt: {voteData.finalizedPlace.name}
+          </Text>
+        </View>
+      )}
 
       {loading && <ActivityIndicator style={{ marginTop: spacing.xl }} size="large" color={colors.primary} />}
 
@@ -396,42 +466,77 @@ export default function SuggestionScreen({ route }) {
             <Ionicons name="locate" size={16} color={colors.accent} />
             <Text style={styles.centroidLabel}>  Điểm trung tâm của nhóm</Text>
             <Text style={styles.centroidValue}>
-              {data.centroid.lat.toFixed(5)}, {data.centroid.lng.toFixed(5)}
+              {centroidAddress || `${data.centroid.lat.toFixed(5)}, ${data.centroid.lng.toFixed(5)}`}
             </Text>
           </View>
 
           <FlatList
             data={data.suggestions}
             keyExtractor={(item) => String(item.id)}
-            style={{ marginTop: spacing.md }}
-            contentContainerStyle={{ gap: spacing.sm }}
-            renderItem={({ item, index }) => (
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityState={{ selected: String(item.id) === selectedPlaceId }}
-                activeOpacity={0.8}
-                onPress={() => selectPlace(item)}
-                style={[
-                  styles.placeRow,
-                  shadow,
-                  String(item.id) === selectedPlaceId && styles.selectedPlaceRow,
-                ]}
-              >
-                <View style={styles.rankBadge}>
-                  <Text style={styles.rankText}>{index + 1}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.placeName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.placeType}>{item.type}</Text>
-                  {item.address && (
-                    <Text style={styles.placeAddress} numberOfLines={2}>{item.address}</Text>
-                  )}
-                </View>
-                <View style={styles.distancePill}>
-                  <Text style={styles.distanceText}>{item.distance.toFixed(2)} km</Text>
-                </View>
-              </TouchableOpacity>
-            )}
+            style={{ marginTop: spacing.md, flex: 1 }}
+            contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.lg }}
+            renderItem={({ item, index }) => {
+              const voteEntry = voteData?.tally?.find((t) => t.placeId === String(item.id));
+              const voteCount = voteEntry?.count || 0;
+              const isMyVote = myUserId && voteEntry?.voterIds?.includes(String(myUserId));
+              const isFinalized = !!voteData?.finalizedPlace;
+              const isWinner = voteData?.finalizedPlace?.placeId === String(item.id);
+
+              return (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: String(item.id) === selectedPlaceId }}
+                  activeOpacity={0.8}
+                  onPress={() => selectPlace(item)}
+                  style={[
+                    styles.placeRow,
+                    shadow,
+                    String(item.id) === selectedPlaceId && styles.selectedPlaceRow,
+                    isWinner && styles.winnerPlaceRow,
+                  ]}
+                >
+                  <View style={styles.rankBadge}>
+                    <Text style={styles.rankText}>{index + 1}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.placeName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.placeType}>{item.type}</Text>
+                    {item.address && (
+                      <Text style={styles.placeAddress} numberOfLines={2}>{item.address}</Text>
+                    )}
+                    <TouchableOpacity
+                      style={styles.mapsLink}
+                      onPress={() => handleViewOnGoogleMaps(item)}
+                    >
+                      <Ionicons name="image-outline" size={14} color={colors.primary} />
+                      <Text style={styles.mapsLinkText}>Xem ảnh & review</Text>
+                    </TouchableOpacity>
+                    {voteCount > 0 && (
+                      <Text style={styles.voteCountText}>
+                        <Ionicons name="people" size={12} color={colors.accent} /> {voteCount} lượt bình chọn
+                      </Text>
+                    )}
+                  </View>
+                  <View style={{ alignItems: 'center', gap: 6 }}>
+                    <View style={styles.distancePill}>
+                      <Text style={styles.distanceText}>{item.distance.toFixed(2)} km</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.voteButton}
+                      onPress={() => handleVote(item)}
+                      disabled={isFinalized || voting}
+                    >
+                      <Ionicons
+                        name={isMyVote ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                        size={24}
+                        color={isMyVote ? colors.success : colors.textSecondary}
+                      />
+                      <Text style={styles.voteButtonLabel}>Bình chọn</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
             ListEmptyComponent={
               <View style={styles.emptyBlock}>
                 <Ionicons name="cafe-outline" size={32} color={colors.textSecondary} />
@@ -504,6 +609,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.accent,
   },
+  winnerPlaceRow: {
+    borderWidth: 2,
+    borderColor: colors.success,
+    backgroundColor: '#F3F7EF',
+  },
   rankBadge: {
     width: 28,
     height: 28,
@@ -532,6 +642,32 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
+  mapsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  mapsLinkText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  voteCountText: {
+    fontSize: 12,
+    color: colors.accent,
+    marginTop: 4,
+  },
+  voteButton: {
+    marginTop: 2,
+    alignItems: 'center',
+  },
+  voteButtonLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   distancePill: {
     backgroundColor: '#E9F0E5',
     paddingHorizontal: spacing.sm,
@@ -542,6 +678,21 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: '700',
     fontSize: 12,
+  },
+  finalizedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.success,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginTop: spacing.md,
+    gap: 6,
+  },
+  finalizedText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
   },
   emptyBlock: {
     alignItems: 'center',
