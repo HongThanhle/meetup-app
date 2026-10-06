@@ -11,7 +11,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
-import { getSuggestions } from '../services/api';
+import { getRouteToSuggestion, getSuggestions } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius, typography, shadow } from '../theme/theme';
 
@@ -23,6 +23,7 @@ const serializeForHtml = (value) => JSON.stringify(value)
 function createMapHtml(data) {
   const mapData = serializeForHtml({
     centroid: data.centroid,
+    viewerLocation: data.viewerLocation || null,
     suggestions: data.suggestions.map((place, index) => ({
       id: String(place.id),
       name: place.name,
@@ -38,6 +39,7 @@ function createMapHtml(data) {
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
     <style>
       html, body, #map { width: 100%; height: 100%; margin: 0; background: #f1eae0; }
       .place-pin {
@@ -46,6 +48,12 @@ function createMapHtml(data) {
         justify-content: center; font: 700 12px sans-serif; box-shadow: 0 2px 5px #0005;
       }
       .place-pin.selected { background: #4a3428; transform: scale(1.2); }
+      .place-cluster {
+        display: flex; align-items: center; justify-content: center; width: 42px; height: 42px;
+        border: 3px solid rgba(190, 106, 67, .28); border-radius: 50%;
+        background: #be6a43; color: #fff; font: 700 13px sans-serif;
+        box-shadow: 0 2px 7px #0004;
+      }
       .center-pin {
         width: 18px; height: 18px; border: 3px solid white; border-radius: 50%;
         background: #3978c5; box-shadow: 0 1px 5px #0007;
@@ -63,12 +71,50 @@ function createMapHtml(data) {
     <div id="map-error">Không tải được bản đồ từ các máy chủ bản đồ. Kiểm tra Internet trên điện thoại rồi thử lại.</div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
       onerror="document.getElementById('map-error').style.display='block'"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script>
       if (window.L) {
         const data = ${mapData};
         const map = L.map('map', { zoomControl: true });
         const markerById = {};
-        const placeMarkers = [];
+        const placeById = {};
+        const selectedRouteOutline = L.polyline([], {
+          color: '#fff',
+          weight: 8,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+        });
+        const selectedRouteLine = L.polyline([], {
+          color: '#3978c5',
+          weight: 5,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+        });
+        const viewerLocationMarker = data.viewerLocation
+          ? L.circleMarker([data.viewerLocation.lat, data.viewerLocation.lng], {
+            radius: 6,
+            color: '#fff',
+            weight: 2,
+            fillColor: '#3978c5',
+            fillOpacity: 1,
+          })
+          : null;
+        const markerClusterGroup = typeof L.markerClusterGroup === 'function'
+          ? L.markerClusterGroup({
+            maxClusterRadius: 48,
+            showCoverageOnHover: false,
+            spiderfyOnMaxZoom: true,
+            zoomToBoundsOnClick: true,
+            iconCreateFunction: (cluster) => L.divIcon({
+              className: '',
+              html: '<div class="place-cluster">' + cluster.getChildCount() + '</div>',
+              iconSize: [48, 48],
+              iconAnchor: [24, 24],
+            }),
+          })
+          : null;
         let visibleTiles = 0;
         let tileErrorCount = 0;
         let tileSourceIndex = 0;
@@ -138,7 +184,7 @@ function createMapHtml(data) {
         data.suggestions.forEach((place) => {
           const marker = L.marker([place.lat, place.lng], {
             icon: createPlaceIcon(place),
-          }).addTo(map);
+          });
           const popup = document.createElement('div');
           const name = document.createElement('strong');
           name.textContent = place.name;
@@ -151,13 +197,23 @@ function createMapHtml(data) {
           marker.bindPopup(popup);
           marker.on('click', () => {
             window.selectPlace(place.id);
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'select', id: place.id }));
           });
           markerById[place.id] = marker;
-          placeMarkers.push({ place, marker });
+          placeById[place.id] = place;
+          if (markerClusterGroup) {
+            markerClusterGroup.addLayer(marker);
+          } else {
+            marker.addTo(map);
+          }
         });
+        if (markerClusterGroup) {
+          markerClusterGroup.addTo(map);
+        }
 
         const points = [[data.centroid.lat, data.centroid.lng], ...data.suggestions.map((place) => [place.lat, place.lng])];
+        if (data.viewerLocation) {
+          points.push([data.viewerLocation.lat, data.viewerLocation.lng]);
+        }
         const fitAllPoints = () => {
           map.invalidateSize();
           if (points.length > 1) {
@@ -170,13 +226,39 @@ function createMapHtml(data) {
 
         window.selectPlace = (placeId) => {
           const marker = markerById[String(placeId)];
-          if (marker) {
-            placeMarkers.forEach(({ place: candidate, marker: candidateMarker }) => {
-              candidateMarker.setIcon(createPlaceIcon(candidate, String(candidate.id) === String(placeId)));
-            });
-            map.setView(marker.getLatLng(), 17, { animate: true });
-            setTimeout(() => marker.openPopup(), 250);
+          const place = placeById[String(placeId)];
+          if (marker && place) {
+            const openSelectedMarker = () => {
+              marker.setIcon(createPlaceIcon(place, true));
+              selectedRouteOutline.setLatLngs([]);
+              selectedRouteLine.setLatLngs([]);
+              if (data.viewerLocation) {
+                viewerLocationMarker.addTo(map);
+              }
+              map.setView(marker.getLatLng(), 17, { animate: true });
+              setTimeout(() => marker.openPopup(), 250);
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'select', id: place.id }));
+            };
+            if (markerClusterGroup) {
+              markerClusterGroup.zoomToShowLayer(marker, openSelectedMarker);
+            } else {
+              openSelectedMarker();
+            }
           }
+        };
+        window.showRoute = (placeId, coordinates) => {
+          if (!placeById[String(placeId)] || !Array.isArray(coordinates) || coordinates.length < 2) {
+            return;
+          }
+          const routeLatLngs = coordinates.map(([lng, lat]) => [lat, lng]);
+          selectedRouteOutline.setLatLngs(routeLatLngs).addTo(map);
+          selectedRouteLine.setLatLngs(routeLatLngs).addTo(map);
+          selectedRouteOutline.bringToFront();
+          selectedRouteLine.bringToFront();
+        };
+        window.clearRoute = () => {
+          selectedRouteOutline.setLatLngs([]);
+          selectedRouteLine.setLatLngs([]);
         };
       } else {
         document.getElementById('map-error').style.display = 'block';
@@ -194,6 +276,7 @@ export default function SuggestionScreen({ route }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef(null);
+  const routeRequestRef = useRef(0);
   const mapHtml = useMemo(() => (data ? createMapHtml(data) : ''), [data]);
   const mapSource = useMemo(() => ({
     html: mapHtml,
@@ -227,11 +310,53 @@ export default function SuggestionScreen({ route }) {
     }
   };
 
+  const loadRouteForPlace = async (placeId) => {
+    const place = data?.suggestions.find((suggestion) => String(suggestion.id) === placeId);
+    if (!place) {
+      return;
+    }
+    if (!data?.viewerLocation) {
+      Alert.alert('Chưa có vị trí của bạn', 'Hãy gửi vị trí trong nhóm để xem đường đi tới địa điểm này.');
+      return;
+    }
+
+    const requestId = routeRequestRef.current + 1;
+    routeRequestRef.current = requestId;
+
+    try {
+      const routeResult = await getRouteToSuggestion(token, groupId, {
+        lat: place.lat,
+        lng: place.lng,
+      });
+
+      if (requestId !== routeRequestRef.current) {
+        return;
+      }
+
+      const coordinates = serializeForHtml(routeResult.coordinates);
+      mapRef.current?.injectJavaScript(
+        `window.showRoute && window.showRoute(${serializeForHtml(placeId)}, ${coordinates}); true;`
+      );
+    } catch (err) {
+      if (requestId !== routeRequestRef.current) {
+        return;
+      }
+
+      mapRef.current?.injectJavaScript('window.clearRoute && window.clearRoute(); true;');
+      Alert.alert(
+        'Không tìm được đường đi',
+        err.response?.data?.error || 'Dịch vụ chỉ đường tạm thời không khả dụng.'
+      );
+    }
+  };
+
   const handleMapMessage = (event) => {
     try {
       const message = JSON.parse(event.nativeEvent.data);
       if (message.type === 'select') {
-        setSelectedPlaceId(String(message.id));
+        const placeId = String(message.id);
+        setSelectedPlaceId(placeId);
+        loadRouteForPlace(placeId);
       }
     } catch (error) {
       Alert.alert('Lỗi bản đồ', 'Không đọc được sự kiện chọn địa điểm từ bản đồ.');

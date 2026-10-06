@@ -91,5 +91,11 @@ export async function reverseGeocode(token, { lat, lng }) {
 export async function getSuggestions(token, groupId) {
   const client = createApiClient(token);
   const response = await client.get(`/groups/${groupId}/suggest`);
-  return response.data; // { centroid, suggestions: [...] }
+  return response.data; // { centroid, viewerLocation, suggestions: [...] }
+}
+
+export async function getRouteToSuggestion(token, groupId, { lat, lng }) {
+  const client = createApiClient(token);
+  const response = await client.post(`/groups/${groupId}/route`, { lat, lng });
+  return response.data; // { coordinates: [[lng, lat], ...], distanceMeters, durationSeconds }
 }
