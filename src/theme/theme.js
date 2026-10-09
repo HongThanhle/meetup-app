@@ -1,19 +1,18 @@
-// Bảng màu lấy cảm hứng từ không gian quán cà phê: nâu espresso, đất nung ấm,
-// nền kem nhạt — tránh xanh dương SaaS mặc định để có cá tính riêng cho app.
+// Bảng màu đô thị: xanh ngọc cho hành động, san hô cho điểm nhấn.
 export const colors = {
-  background: '#FBF7F2',      // nền kem nhạt, ấm
-  surface: '#FFFFFF',         // nền card/input
-  surfaceMuted: '#F1EAE0',    // nền phụ, ô mã mời, badge chờ
+  background: '#F3F7F5',
+  surface: '#FFFFFF',
+  surfaceMuted: '#E7EFEB',
 
-  textPrimary: '#2C2119',     // nâu đậm gần đen, dùng cho chữ chính
-  textSecondary: '#8A7A6B',   // nâu xám nhạt, dùng cho mô tả/phụ đề
+  textPrimary: '#18312C',
+  textSecondary: '#526761',
 
-  primary: '#4A3428',         // nâu espresso — nút chính, tiêu đề nhấn
-  accent: '#BE6A43',          // đất nung — điểm nhấn, badge, icon
-  success: '#6E8B5E',         // xanh rêu — trạng thái "đã gửi/thành công"
-  danger: '#B3453D',          // đỏ đất — lỗi
+  primary: '#146356',
+  accent: '#E76F51',
+  success: '#2E7D62',
+  danger: '#B4473F',
 
-  border: '#E8DED2',          // viền nhạt, đồng bộ tông ấm
+  border: '#D6E2DD',
 };
 
 export const spacing = {
@@ -26,22 +25,22 @@ export const spacing = {
 
 export const radius = {
   sm: 8,
-  md: 14,
-  lg: 20,
+  md: 12,
+  lg: 16,
   pill: 999,
 };
 
 export const typography = {
-  title: { fontSize: 26, fontFamily: 'BeVietnamPro_700Bold', color: colors.textPrimary, letterSpacing: -0.3 },
+  title: { fontSize: 26, fontFamily: 'BeVietnamPro_700Bold', color: colors.textPrimary, letterSpacing: 0 },
   subtitle: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
   body: { fontSize: 15, fontWeight: '400', color: colors.textPrimary },
-  button: { fontSize: 15, fontWeight: '600', letterSpacing: 0.2 },
+  button: { fontSize: 15, fontWeight: '600', letterSpacing: 0 },
   label: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
 };
 
 // Bóng đổ mềm, tông ấm thay vì xám mặc định
 export const shadow = {
-  shadowColor: '#4A3428',
+  shadowColor: '#18312C',
   shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.08,
   shadowRadius: 12,

@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   FlatList,
   Alert,
+  RefreshControl,
+  Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,21 +24,33 @@ function initials(name = '') {
 
 export default function GroupStatusScreen({ route, navigation }) {
   const { groupId, groupName, inviteCode } = route.params;
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [members, setMembers] = useState([]);
+  const [finalizedPlace, setFinalizedPlace] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
   const [leaving, setLeaving] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
       const result = await getGroupStatus(token, groupId);
       setMembers(result.members);
+      setFinalizedPlace(result.finalizedPlace || null);
+      setError(null);
     } catch (err) {
       console.log('Lỗi lấy trạng thái nhóm:', err.message);
+      setError('Không thể cập nhật trạng thái nhóm.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [token, groupId]);
+
+  const refreshStatus = useCallback(() => {
+    setRefreshing(true);
+    fetchStatus();
+  }, [fetchStatus]);
 
   useFocusEffect(
     useCallback(() => {
@@ -49,10 +63,33 @@ export default function GroupStatusScreen({ route, navigation }) {
   const submittedCount = members.filter((m) => m.hasSubmitted).length;
   const progressRatio = members.length > 0 ? submittedCount / members.length : 0;
 
+  const openFinalizedPlace = async () => {
+    if (!finalizedPlace) return;
+
+    const query = Number.isFinite(finalizedPlace.lat) && Number.isFinite(finalizedPlace.lng)
+      ? `${finalizedPlace.lat},${finalizedPlace.lng}`
+      : `${finalizedPlace.name} ${finalizedPlace.address || ''}`.trim();
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+
+    try {
+      await Linking.openURL(url);
+    } catch (err) {
+      Alert.alert('Không mở được bản đồ', err.message || 'Vui lòng thử lại.');
+    }
+  };
+
   const handleLeaveGroup = () => {
+    const currentMember = members.find((member) => member.userId === String(user?.id));
+    const isLastMember = members.length === 1;
+    const confirmationMessage = currentMember?.isLeader
+      ? isLastMember
+        ? `Bạn là thành viên cuối cùng. Khi rời, "${groupName}" cùng vị trí và bình chọn sẽ bị xóa.`
+        : `Bạn là trưởng nhóm. Quyền trưởng nhóm sẽ được chuyển cho thành viên tham gia sớm nhất trước khi bạn rời nhóm.`
+      : `Bạn sẽ không còn thấy "${groupName}" trong danh sách nhóm nữa.`;
+
     Alert.alert(
       'Rời nhóm?',
-      `Bạn sẽ không còn thấy "${groupName}" trong danh sách nhóm nữa.`,
+      confirmationMessage,
       [
         { text: 'Hủy', style: 'cancel' },
         {
@@ -61,9 +98,14 @@ export default function GroupStatusScreen({ route, navigation }) {
           onPress: async () => {
             setLeaving(true);
             try {
-              await leaveGroup(token, { groupId });
+              const result = await leaveGroup(token, { groupId });
               // Quay về màn hình danh sách nhóm, xóa hẳn màn hình nhóm này khỏi lịch sử điều hướng
               navigation.reset({ index: 0, routes: [{ name: 'MyGroups' }] });
+              if (result.newLeader) {
+                Alert.alert('Đã chuyển trưởng nhóm', `${result.newLeader} hiện là trưởng nhóm mới.`);
+              } else if (result.groupDeleted) {
+                Alert.alert('Đã xóa nhóm', 'Nhóm và dữ liệu vị trí, bình chọn đã được xóa.');
+              }
             } catch (err) {
               Alert.alert('Lỗi', err.response?.data?.error || err.message);
               setLeaving(false);
@@ -78,22 +120,65 @@ export default function GroupStatusScreen({ route, navigation }) {
     <View style={styles.container}>
       <Text style={styles.title}>{groupName}</Text>
 
+      {finalizedPlace && (
+        <View style={[styles.finalizedCard, shadow]}>
+          <View style={styles.finalizedIcon}>
+            <Ionicons name="flag" size={20} color={colors.success} />
+          </View>
+          <View style={styles.finalizedDetails}>
+            <Text style={styles.finalizedLabel}>ĐỊA ĐIỂM ĐÃ CHỐT</Text>
+            <Text style={styles.finalizedName}>{finalizedPlace.name}</Text>
+            {finalizedPlace.address ? (
+              <Text style={styles.finalizedAddress} numberOfLines={2}>{finalizedPlace.address}</Text>
+            ) : null}
+            <TouchableOpacity
+              style={styles.finalizedMapButton}
+              onPress={openFinalizedPlace}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="map-outline" size={15} color={colors.primary} />
+              <Text style={styles.finalizedMapButtonText}>Mở trên bản đồ</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {inviteCode && (
         <View style={[styles.codeCard, shadow]}>
-          <Text style={styles.codeLabel}>Mã mời — gửi cho bạn bè</Text>
-          <Text style={styles.codeValue}>{inviteCode}</Text>
+          <View style={styles.codeCopy}>
+            <Text style={styles.codeLabel}>MÃ MỜI</Text>
+            <Text style={styles.codeValue}>{inviteCode}</Text>
+          </View>
+          <View style={styles.codeIcon}>
+            <Ionicons name="paper-plane-outline" size={20} color="#fff" />
+          </View>
         </View>
       )}
 
       <View style={styles.progressBlock}>
         <View style={styles.progressHeader}>
-          <Text style={styles.progressLabel}>Tiến độ chia sẻ vị trí</Text>
+          <View>
+            <Text style={styles.progressLabel}>Vị trí đã chia sẻ</Text>
+            <Text style={styles.progressHint}>Cập nhật tự động</Text>
+          </View>
           <Text style={styles.progressCount}>{submittedCount}/{members.length}</Text>
         </View>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${progressRatio * 100}%` }]} />
         </View>
       </View>
+
+      <View style={styles.memberHeading}>
+        <Text style={styles.memberHeadingTitle}>Thành viên</Text>
+        <Text style={styles.memberHeadingCount}>{members.length}</Text>
+      </View>
+
+      {error && members.length > 0 && (
+        <View style={styles.warningBanner}>
+          <Ionicons name="cloud-offline-outline" size={16} color={colors.danger} />
+          <Text style={styles.warningText}>{error} Đang hiển thị dữ liệu gần nhất.</Text>
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
@@ -102,18 +187,51 @@ export default function GroupStatusScreen({ route, navigation }) {
           data={members}
           keyExtractor={(item) => item.userId}
           style={{ marginTop: spacing.md }}
-          contentContainerStyle={{ gap: spacing.sm }}
+          contentContainerStyle={[styles.memberListContent, !members.length && styles.memberListEmpty]}
+          refreshControl={(
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refreshStatus}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          )}
           renderItem={({ item }) => (
             <View style={[styles.memberRow, shadow]}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{initials(item.name)}</Text>
               </View>
-              <Text style={styles.memberName}>{item.name}</Text>
+              <View style={styles.memberIdentity}>
+                <Text style={styles.memberName}>{item.name}</Text>
+                <View style={[styles.rolePill, item.isLeader && styles.leaderPill]}>
+                  <Text style={[styles.roleText, item.isLeader && styles.leaderText]}>
+                    {item.isLeader ? 'Trưởng nhóm' : 'Thành viên'}
+                  </Text>
+                </View>
+              </View>
               <View style={[styles.statusPill, item.hasSubmitted ? styles.statusPillDone : styles.statusPillPending]}>
                 <Text style={[styles.statusText, item.hasSubmitted ? styles.statusTextDone : styles.statusTextPending]}>
                   {item.hasSubmitted ? '✓ Đã gửi' : 'Đang chờ'}
                 </Text>
               </View>
+            </View>
+          )}
+          ListEmptyComponent={(
+            <View style={styles.emptyBlock}>
+              <Ionicons
+                name={error ? 'cloud-offline-outline' : 'people-outline'}
+                size={34}
+                color={error ? colors.danger : colors.textSecondary}
+              />
+              <Text style={[styles.emptyText, error && styles.emptyErrorText]}>
+                {error || 'Nhóm chưa có thành viên nào.'}
+              </Text>
+              {error && (
+                <TouchableOpacity style={styles.retryButton} onPress={refreshStatus} activeOpacity={0.85}>
+                  <Ionicons name="refresh" size={16} color={colors.primary} />
+                  <Text style={styles.retryText}>Thử lại</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         />
@@ -162,41 +280,113 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.title,
-    textAlign: 'center',
-    marginTop: spacing.lg,
+    textAlign: 'left',
+    marginTop: spacing.sm,
   },
-  codeCard: {
+  finalizedCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.success,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  finalizedIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.sm,
+    backgroundColor: '#E9F0E5',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  finalizedDetails: {
+    flex: 1,
+  },
+  finalizedLabel: {
+    color: colors.success,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  finalizedName: {
+    ...typography.body,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+  finalizedAddress: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  finalizedMapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+  },
+  finalizedMapButtonText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  codeCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  codeCopy: { gap: 2 },
+  codeIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.sm,
+    backgroundColor: '#FFFFFF24',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   codeLabel: {
-    ...typography.label,
+    color: '#D5E9E3',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   codeValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    color: colors.accent,
-    letterSpacing: 4,
-    marginTop: spacing.xs,
+    color: '#fff',
+    letterSpacing: 3,
   },
   progressBlock: {
-    marginTop: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.md,
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
   progressLabel: {
+    ...typography.body,
+    fontWeight: '700',
+  },
+  progressHint: {
     ...typography.subtitle,
+    fontSize: 11,
+    marginTop: 2,
   },
   progressCount: {
-    ...typography.subtitle,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    color: colors.primary,
+    fontSize: 20,
+    fontWeight: '800',
   },
   progressTrack: {
     height: 8,
@@ -209,6 +399,51 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success,
     borderRadius: radius.pill,
   },
+  memberHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
+  },
+  memberHeadingTitle: { ...typography.body, fontWeight: '800' },
+  memberHeadingCount: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+    backgroundColor: colors.surfaceMuted,
+    overflow: 'hidden',
+    borderRadius: radius.pill,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    padding: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: '#F8E4E1',
+  },
+  warningText: { flex: 1, color: colors.danger, fontSize: 12, lineHeight: 17 },
+  memberListContent: { gap: spacing.sm, paddingBottom: spacing.sm },
+  memberListEmpty: { flexGrow: 1, justifyContent: 'center' },
+  emptyBlock: { alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
+  emptyText: { ...typography.subtitle, textAlign: 'center', marginTop: spacing.sm },
+  emptyErrorText: { color: colors.danger },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  retryText: { ...typography.button, color: colors.primary },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -232,8 +467,29 @@ const styles = StyleSheet.create({
   },
   memberName: {
     ...typography.body,
-    flex: 1,
     fontWeight: '600',
+  },
+  memberIdentity: {
+    flex: 1,
+    gap: 4,
+  },
+  rolePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.pill,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  leaderPill: {
+    backgroundColor: '#E7EFEB',
+  },
+  roleText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  leaderText: {
+    color: colors.primary,
   },
   statusPill: {
     paddingHorizontal: spacing.sm,

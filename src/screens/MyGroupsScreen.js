@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
+  RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,17 +18,27 @@ export default function MyGroupsScreen({ navigation }) {
   const { token, user, logout } = useAuth();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchGroups = useCallback(async () => {
     try {
       const result = await getMyGroups(token);
       setGroups(result.groups);
+      setError(null);
     } catch (err) {
       console.log('Lỗi lấy danh sách nhóm:', err.message);
+      setError('Không thể tải danh sách nhóm. Kiểm tra kết nối rồi thử lại.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [token]);
+
+  const refreshGroups = useCallback(() => {
+    setRefreshing(true);
+    fetchGroups();
+  }, [fetchGroups]);
 
   // Tự tải lại mỗi khi quay về màn hình này — ví dụ sau khi tạo nhóm mới hoặc rời nhóm
   useFocusEffect(
@@ -39,8 +50,16 @@ export default function MyGroupsScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.greeting}>Chào {user?.name?.split(' ').pop() || 'bạn'} 👋</Text>
-        <Text style={styles.title}>Nhóm của bạn</Text>
+        <Text style={styles.greeting}>CHÀO {user?.name?.split(' ').pop() || 'BẠN'}</Text>
+        <View style={styles.headerMainRow}>
+          <Text style={styles.title}>Nhóm hẹn gặp</Text>
+          {!loading && !error && (
+            <View style={styles.groupCount}>
+              <Text style={styles.groupCountNumber}>{groups.length}</Text>
+              <Text style={styles.groupCountLabel}>NHÓM</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {loading ? (
@@ -49,7 +68,19 @@ export default function MyGroupsScreen({ navigation }) {
         <FlatList
           data={groups}
           keyExtractor={(item) => item.groupId}
-          contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.md }}
+          style={styles.groupList}
+          contentContainerStyle={[
+            styles.groupListContent,
+            groups.length === 0 && styles.groupListEmpty,
+          ]}
+          refreshControl={(
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refreshGroups}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          )}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.groupCard, shadow]}
@@ -67,16 +98,30 @@ export default function MyGroupsScreen({ navigation }) {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.groupName}>{item.groupName}</Text>
-                <Text style={styles.groupMeta}>{item.memberCount} thành viên</Text>
+                <View style={styles.groupMetaRow}>
+                  <Ionicons name="people-outline" size={13} color={colors.textSecondary} />
+                  <Text style={styles.groupMeta}>{item.memberCount} thành viên</Text>
+                </View>
               </View>
               <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <View style={styles.emptyBlock}>
-              <Ionicons name="clipboard-outline" size={40} color={colors.textSecondary} />
-              <Text style={styles.emptyText}>Bạn chưa có nhóm nào.{'\n'}Tạo nhóm mới để bắt đầu hẹn gặp!</Text>
-            </View>
+            error ? (
+              <View style={styles.emptyBlock}>
+                <Ionicons name="cloud-offline-outline" size={38} color={colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={refreshGroups} activeOpacity={0.85}>
+                  <Ionicons name="refresh" size={16} color={colors.primary} />
+                  <Text style={styles.retryText}>Thử lại</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.emptyBlock}>
+                <Ionicons name="clipboard-outline" size={40} color={colors.textSecondary} />
+                <Text style={styles.emptyText}>Bạn chưa có nhóm nào.{'\n'}Tạo nhóm mới để bắt đầu hẹn gặp!</Text>
+              </View>
+            )
           }
         />
       )}
@@ -104,23 +149,44 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   header: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
   },
   greeting: {
-    ...typography.subtitle,
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: spacing.xs,
   },
+  headerMainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: {
     ...typography.title,
-    marginTop: spacing.xs,
+    fontSize: 29,
   },
+  groupCount: {
+    minWidth: 54,
+    height: 54,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  groupCountNumber: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  groupCountLabel: { color: '#D5E9E3', fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
+  groupList: { flex: 1 },
+  groupListContent: { gap: spacing.sm, paddingBottom: spacing.md },
+  groupListEmpty: { flexGrow: 1 },
   groupCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
   },
   groupIcon: {
     width: 44,
@@ -140,15 +206,16 @@ const styles = StyleSheet.create({
   groupMeta: {
     ...typography.subtitle,
     fontSize: 12,
-    marginTop: 2,
   },
+  groupMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   chevron: {
     fontSize: 22,
     color: colors.textSecondary,
   },
   emptyBlock: {
     alignItems: 'center',
-    marginTop: spacing.xl,
+    justifyContent: 'center',
+    flex: 1,
     paddingHorizontal: spacing.lg,
   },
   emptyIcon: {
@@ -160,6 +227,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  errorText: {
+    ...typography.subtitle,
+    color: colors.danger,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginTop: spacing.sm,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  retryText: { ...typography.button, color: colors.primary },
   primaryButton: {
     backgroundColor: colors.primary,
     borderRadius: radius.sm,

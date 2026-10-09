@@ -50,7 +50,7 @@ export async function joinGroup(token, { inviteCode }) {
 export async function getGroupStatus(token, groupId) {
   const client = createApiClient(token);
   const response = await client.get(`/groups/${groupId}/status`);
-  return response.data; // { members: [{ userId, name, hasSubmitted }] }
+  return response.data; // { members: [{ userId, name, isLeader, hasSubmitted }], finalizedPlace }
 }
 
 // ----- Location -----
@@ -109,13 +109,13 @@ export async function castVote(token, { groupId, placeId, placeName, lat, lng })
     lat,
     lng,
   });
-  return response.data; // { totalMembers, totalVotes, tally, finalizedPlace }
+  return response.data; // tally entries include voterIds and voterNames
 }
 
 export async function getVoteResults(token, groupId) {
   const client = createApiClient(token);
   const response = await client.get(`/groups/${groupId}/vote-results`);
-  return response.data; // { totalMembers, totalVotes, tally, finalizedPlace }
+  return response.data; // tally entries include voterIds and voterNames
 }
 
 export async function finalizeMeetupPlace(token, { groupId, placeId, placeName, lat, lng, address }) {
